@@ -1,5 +1,15 @@
 scalar Long
 
+type TopPair {
+  id: ID!
+  token0: String!
+  token1: String!
+  icon0: String!
+  icon1: String!
+  totalVolumeRecorded: Float!
+  marketCap: Float!
+}
+
 type Token {
   id: ID!
   name: String!
@@ -55,10 +65,13 @@ type Link {
 
 type Query {
   links: [Link!]!
+  token(id: String!): Token!
   tokens: [Token!]!
   tokenSearch(prefix: String!): [Token!]!
   getBestExchangeRate(inToken: String!, outToken: String!, inAmount: Float!): Float!
   getUserBalance(token: String!): Float!
+  getTopTradedPair(pageId: Int!): [TopPair!]!
+  getTopMarketCapTokens(pageId: Int!): [Token!]!
 }
 
 input NewLink {

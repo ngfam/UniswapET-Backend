@@ -105,6 +105,17 @@ func (r *queryResolver) Links(ctx context.Context) ([]*model.Link, error) {
 	return resultLinks, nil
 }
 
+func (r *queryResolver) Token(ctx context.Context, id string) (*model.Token, error) {
+	token := tokens.GetById(id)
+	return &model.Token{
+		ID:          token.ID,
+		IconURL:     token.IconURL,
+		TotalSupply: token.TotalSupply,
+		Price:       token.Price,
+		Name:        token.Name,
+	}, nil
+}
+
 func (r *queryResolver) Tokens(ctx context.Context) ([]*model.Token, error) {
 	var resultTokens []*model.Token
 	var dbTokens []tokens.Token
@@ -139,6 +150,41 @@ func (r *queryResolver) GetUserBalance(ctx context.Context, token string) (float
 	}
 	userBalance, _ := users.GetUserBalance(user.ID, token)
 	return userBalance.Balance, nil
+}
+
+func (r *queryResolver) GetTopTradedPair(ctx context.Context, pageID int) ([]*model.TopPair, error) {
+	var resultPairs []*model.TopPair
+	var topTradedPair []pairs.TopPair
+	topTradedPair = pairs.TopTradedPairs(pageID)
+
+	for _, pair := range topTradedPair {
+		resultPairs = append(resultPairs, &model.TopPair{
+			ID:                  pair.ID,
+			Token0:              pair.Token0,
+			Token1:              pair.Token1,
+			TotalVolumeRecorded: pair.TotalVolumeRecorded,
+			MarketCap:           pair.MarketCap,
+			Icon0:               pair.Icon0,
+			Icon1:               pair.Icon1,
+		})
+	}
+	return resultPairs, nil
+}
+
+func (r *queryResolver) GetTopMarketCapTokens(ctx context.Context, pageID int) ([]*model.Token, error) {
+	topTokens := tokens.TopMarketcapTokens(pageID)
+	var resultTokens []*model.Token
+
+	for _, token := range topTokens {
+		resultTokens = append(resultTokens, &model.Token{
+			ID:          token.ID,
+			IconURL:     token.IconURL,
+			TotalSupply: token.TotalSupply,
+			Price:       token.Price,
+			Name:        token.Name,
+		})
+	}
+	return resultTokens, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

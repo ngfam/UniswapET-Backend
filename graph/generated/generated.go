@@ -69,11 +69,14 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		GetBestExchangeRate func(childComplexity int, inToken string, outToken string, inAmount float64) int
-		GetUserBalance      func(childComplexity int, token string) int
-		Links               func(childComplexity int) int
-		TokenSearch         func(childComplexity int, prefix string) int
-		Tokens              func(childComplexity int) int
+		GetBestExchangeRate   func(childComplexity int, inToken string, outToken string, inAmount float64) int
+		GetTopMarketCapTokens func(childComplexity int, pageID int) int
+		GetTopTradedPair      func(childComplexity int, pageID int) int
+		GetUserBalance        func(childComplexity int, token string) int
+		Links                 func(childComplexity int) int
+		Token                 func(childComplexity int, id string) int
+		TokenSearch           func(childComplexity int, prefix string) int
+		Tokens                func(childComplexity int) int
 	}
 
 	SwapTransaction struct {
@@ -100,6 +103,16 @@ type ComplexityRoot struct {
 		TokenPrice func(childComplexity int) int
 	}
 
+	TopPair struct {
+		ID                  func(childComplexity int) int
+		Icon0               func(childComplexity int) int
+		Icon1               func(childComplexity int) int
+		MarketCap           func(childComplexity int) int
+		Token0              func(childComplexity int) int
+		Token1              func(childComplexity int) int
+		TotalVolumeRecorded func(childComplexity int) int
+	}
+
 	User struct {
 		HashedPassword func(childComplexity int) int
 		ID             func(childComplexity int) int
@@ -122,10 +135,13 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	Links(ctx context.Context) ([]*model.Link, error)
+	Token(ctx context.Context, id string) (*model.Token, error)
 	Tokens(ctx context.Context) ([]*model.Token, error)
 	TokenSearch(ctx context.Context, prefix string) ([]*model.Token, error)
 	GetBestExchangeRate(ctx context.Context, inToken string, outToken string, inAmount float64) (float64, error)
 	GetUserBalance(ctx context.Context, token string) (float64, error)
+	GetTopTradedPair(ctx context.Context, pageID int) ([]*model.TopPair, error)
+	GetTopMarketCapTokens(ctx context.Context, pageID int) ([]*model.Token, error)
 }
 
 type executableSchema struct {
@@ -292,6 +308,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.GetBestExchangeRate(childComplexity, args["inToken"].(string), args["outToken"].(string), args["inAmount"].(float64)), true
 
+	case "Query.getTopMarketCapTokens":
+		if e.complexity.Query.GetTopMarketCapTokens == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getTopMarketCapTokens_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetTopMarketCapTokens(childComplexity, args["pageId"].(int)), true
+
+	case "Query.getTopTradedPair":
+		if e.complexity.Query.GetTopTradedPair == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getTopTradedPair_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetTopTradedPair(childComplexity, args["pageId"].(int)), true
+
 	case "Query.getUserBalance":
 		if e.complexity.Query.GetUserBalance == nil {
 			break
@@ -310,6 +350,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Links(childComplexity), true
+
+	case "Query.token":
+		if e.complexity.Query.Token == nil {
+			break
+		}
+
+		args, err := ec.field_Query_token_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Token(childComplexity, args["id"].(string)), true
 
 	case "Query.tokenSearch":
 		if e.complexity.Query.TokenSearch == nil {
@@ -435,6 +487,55 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.TokenHourData.TokenPrice(childComplexity), true
 
+	case "TopPair.id":
+		if e.complexity.TopPair.ID == nil {
+			break
+		}
+
+		return e.complexity.TopPair.ID(childComplexity), true
+
+	case "TopPair.icon0":
+		if e.complexity.TopPair.Icon0 == nil {
+			break
+		}
+
+		return e.complexity.TopPair.Icon0(childComplexity), true
+
+	case "TopPair.icon1":
+		if e.complexity.TopPair.Icon1 == nil {
+			break
+		}
+
+		return e.complexity.TopPair.Icon1(childComplexity), true
+
+	case "TopPair.marketCap":
+		if e.complexity.TopPair.MarketCap == nil {
+			break
+		}
+
+		return e.complexity.TopPair.MarketCap(childComplexity), true
+
+	case "TopPair.token0":
+		if e.complexity.TopPair.Token0 == nil {
+			break
+		}
+
+		return e.complexity.TopPair.Token0(childComplexity), true
+
+	case "TopPair.token1":
+		if e.complexity.TopPair.Token1 == nil {
+			break
+		}
+
+		return e.complexity.TopPair.Token1(childComplexity), true
+
+	case "TopPair.totalVolumeRecorded":
+		if e.complexity.TopPair.TotalVolumeRecorded == nil {
+			break
+		}
+
+		return e.complexity.TopPair.TotalVolumeRecorded(childComplexity), true
+
 	case "User.hashedPassword":
 		if e.complexity.User.HashedPassword == nil {
 			break
@@ -543,6 +644,16 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 var sources = []*ast.Source{
 	{Name: "graph/schema.graphqls", Input: `scalar Long
 
+type TopPair {
+  id: ID!
+  token0: String!
+  token1: String!
+  icon0: String!
+  icon1: String!
+  totalVolumeRecorded: Float!
+  marketCap: Float!
+}
+
 type Token {
   id: ID!
   name: String!
@@ -598,10 +709,13 @@ type Link {
 
 type Query {
   links: [Link!]!
+  token(id: String!): Token!
   tokens: [Token!]!
   tokenSearch(prefix: String!): [Token!]!
   getBestExchangeRate(inToken: String!, outToken: String!, inAmount: Float!): Float!
   getUserBalance(token: String!): Float!
+  getTopTradedPair(pageId: Int!): [TopPair!]!
+  getTopMarketCapTokens(pageId: Int!): [Token!]!
 }
 
 input NewLink {
@@ -779,6 +893,36 @@ func (ec *executionContext) field_Query_getBestExchangeRate_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_getTopMarketCapTokens_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["pageId"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pageId"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["pageId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_getTopTradedPair_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["pageId"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pageId"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["pageId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_getUserBalance_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -806,6 +950,21 @@ func (ec *executionContext) field_Query_tokenSearch_args(ctx context.Context, ra
 		}
 	}
 	args["prefix"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_token_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -1477,6 +1636,48 @@ func (ec *executionContext) _Query_links(ctx context.Context, field graphql.Coll
 	return ec.marshalNLink2ᚕᚖgithubᚗcomᚋngfamᚋuniswap69420ᚋgraphᚋmodelᚐLinkᚄ(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Query_token(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_token_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Token(rctx, args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Token)
+	fc.Result = res
+	return ec.marshalNToken2ᚖgithubᚗcomᚋngfamᚋuniswap69420ᚋgraphᚋmodelᚐToken(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Query_tokens(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1636,6 +1837,90 @@ func (ec *executionContext) _Query_getUserBalance(ctx context.Context, field gra
 	res := resTmp.(float64)
 	fc.Result = res
 	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_getTopTradedPair(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_getTopTradedPair_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetTopTradedPair(rctx, args["pageId"].(int))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.TopPair)
+	fc.Result = res
+	return ec.marshalNTopPair2ᚕᚖgithubᚗcomᚋngfamᚋuniswap69420ᚋgraphᚋmodelᚐTopPairᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_getTopMarketCapTokens(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_getTopMarketCapTokens_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetTopMarketCapTokens(rctx, args["pageId"].(int))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Token)
+	fc.Result = res
+	return ec.marshalNToken2ᚕᚖgithubᚗcomᚋngfamᚋuniswap69420ᚋgraphᚋmodelᚐTokenᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2218,6 +2503,251 @@ func (ec *executionContext) _TokenHourData_tokenPrice(ctx context.Context, field
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
 		return obj.TokenPrice, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _TopPair_id(ctx context.Context, field graphql.CollectedField, obj *model.TopPair) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "TopPair",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _TopPair_token0(ctx context.Context, field graphql.CollectedField, obj *model.TopPair) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "TopPair",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Token0, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _TopPair_token1(ctx context.Context, field graphql.CollectedField, obj *model.TopPair) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "TopPair",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Token1, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _TopPair_icon0(ctx context.Context, field graphql.CollectedField, obj *model.TopPair) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "TopPair",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Icon0, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _TopPair_icon1(ctx context.Context, field graphql.CollectedField, obj *model.TopPair) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "TopPair",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Icon1, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _TopPair_totalVolumeRecorded(ctx context.Context, field graphql.CollectedField, obj *model.TopPair) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "TopPair",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TotalVolumeRecorded, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _TopPair_marketCap(ctx context.Context, field graphql.CollectedField, obj *model.TopPair) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "TopPair",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.MarketCap, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3869,6 +4399,20 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}
 				return res
 			})
+		case "token":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_token(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "tokens":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
@@ -3920,6 +4464,34 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_getUserBalance(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "getTopTradedPair":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getTopTradedPair(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "getTopMarketCapTokens":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getTopMarketCapTokens(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -4067,6 +4639,63 @@ func (ec *executionContext) _TokenHourData(ctx context.Context, sel ast.Selectio
 			}
 		case "tokenPrice":
 			out.Values[i] = ec._TokenHourData_tokenPrice(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var topPairImplementors = []string{"TopPair"}
+
+func (ec *executionContext) _TopPair(ctx context.Context, sel ast.SelectionSet, obj *model.TopPair) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, topPairImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TopPair")
+		case "id":
+			out.Values[i] = ec._TopPair_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "token0":
+			out.Values[i] = ec._TopPair_token0(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "token1":
+			out.Values[i] = ec._TopPair_token1(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "icon0":
+			out.Values[i] = ec._TopPair_icon0(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "icon1":
+			out.Values[i] = ec._TopPair_icon1(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "totalVolumeRecorded":
+			out.Values[i] = ec._TopPair_totalVolumeRecorded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "marketCap":
+			out.Values[i] = ec._TopPair_marketCap(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -4558,6 +5187,10 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
+func (ec *executionContext) marshalNToken2githubᚗcomᚋngfamᚋuniswap69420ᚋgraphᚋmodelᚐToken(ctx context.Context, sel ast.SelectionSet, v model.Token) graphql.Marshaler {
+	return ec._Token(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNToken2ᚕᚖgithubᚗcomᚋngfamᚋuniswap69420ᚋgraphᚋmodelᚐTokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Token) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -4610,6 +5243,60 @@ func (ec *executionContext) marshalNToken2ᚖgithubᚗcomᚋngfamᚋuniswap69420
 		return graphql.Null
 	}
 	return ec._Token(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTopPair2ᚕᚖgithubᚗcomᚋngfamᚋuniswap69420ᚋgraphᚋmodelᚐTopPairᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.TopPair) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNTopPair2ᚖgithubᚗcomᚋngfamᚋuniswap69420ᚋgraphᚋmodelᚐTopPair(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTopPair2ᚖgithubᚗcomᚋngfamᚋuniswap69420ᚋgraphᚋmodelᚐTopPair(ctx context.Context, sel ast.SelectionSet, v *model.TopPair) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._TopPair(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋngfamᚋuniswap69420ᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {

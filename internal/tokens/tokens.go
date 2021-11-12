@@ -72,3 +72,18 @@ func GetByPrefix(prefix string) []Token {
 	}
 	return tokens
 }
+
+func GetById(id string) Token {
+	stmt, err := database.Db.Prepare("select * from Token where ID = ?")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer stmt.Close()
+	row := stmt.QueryRow(id)
+	var token Token
+	err = row.Scan(&token.ID, &token.Name, &token.TotalSupply, &token.IconURL, &token.Price)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return token
+}

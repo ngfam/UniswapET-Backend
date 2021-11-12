@@ -3,6 +3,7 @@ package pairs
 import (
 	"context"
 	database "internal/pkg/db/mysql"
+	"internal/tokens"
 	"internal/users"
 	"log"
 )
@@ -17,7 +18,7 @@ type Pair struct {
 	totalVolumeRecorded float64
 }
 
-var whiteListTokens = []string{"btc", "ethereum", "tether", "cardano", "solana"}
+var whiteListTokens = []string{"btc", "ethereum", "tether", "cardano", "solana", "usd-coin", "terra-luna", "ripple", "polkadot", "dogecoin"}
 
 func getPair(token0 string, token1 string) (Pair, error) {
 	stmt, err := database.Db.Prepare("select * from Pair where (token0 = ? and token1 = ?) or (token0 = ? and token1 = ?)")
@@ -58,8 +59,8 @@ func calcExactIn(inToken string, amountIn float64, pair Pair) float64 {
 
 func GetBestExchangeRate(token0 string, token1 string, amountIn float64) (float64, string) {
 	stmt, err := database.Db.Prepare("select * from Pair where " +
-		"((token0 = ? or token0 = ?) and token1 IN ('btc', 'ethereum', 'tether', 'cardano', 'solana')) or" +
-		"((token1 = ? or token1 = ?) and token0 IN ('btc', 'ethereum', 'tether', 'cardano', 'solana'))")
+		"((token0 = ? or token0 = ?) and token1 IN ('btc', 'ethereum', 'tether', 'cardano', 'solana', 'usd-coin', 'terra-luna', 'ripple', 'polkadot', 'dogecoin')) or" +
+		"((token1 = ? or token1 = ?) and token0 IN ('btc', 'ethereum', 'tether', 'cardano', 'solana', 'usd-coin', 'terra-luna', 'ripple', 'polkadot', 'dogecoin'))")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,18 +97,30 @@ func GetBestExchangeRate(token0 string, token1 string, amountIn float64) (float6
 		pair0 := pairMap[token0+"-"+whiteListed]
 		pair1 := pairMap[token1+"-"+whiteListed]
 
+		if pair0.ID == "" || pair1.ID == "" {
+			continue
+		}
+
 		rate := calcExactIn(whiteListed, calcExactIn(token0, amountIn, pair0), pair1)
 		if rate > bestAns {
 			bestAns = rate
 			bestIntermediaryToken = whiteListed
 		}
 	}
+
 	return bestAns, bestIntermediaryToken
 }
 
 func Swap(userID int, token0 string, token1 string, inAmount float64, intermediaryToken string) bool {
 	if token0 == token1 {
 		return false
+	}
+
+	tokenMap := make(map[string]tokens.Token)
+	tokenMap[token0] = tokens.GetById(token0)
+	tokenMap[token1] = tokens.GetById(token1)
+	if intermediaryToken != "" {
+		tokenMap[intermediaryToken] = tokens.GetById(intermediaryToken)
 	}
 
 	bal0, _ := users.GetUserBalance(userID, token0)
@@ -133,11 +146,9 @@ func Swap(userID int, token0 string, token1 string, inAmount float64, intermedia
 		log.Fatal()
 	}
 
-	tx.ExecContext(ctx, "ALTER TABLE UserBalance add constraint check_balance check (balance >= 0)")
-
 	txSwapFunc := func(inToken string, outToken string, inAmount float64, pair *Pair, inBalance *users.UserBalance, outBalance *users.UserBalance) (float64, error) {
 		UPDATE_USER_BALANCE := "UPDATE UserBalance set balance = ? where userID = ? and tokenID = ?"
-		UPDATE_PAIR_RESERVE := "UPDATE Pair set balance0 = ?, balance1 = ? where ID = ?"
+		UPDATE_PAIR_RESERVE := "UPDATE Pair set balance0 = ?, balance1 = ?, totalVolumeRecorded = ? where ID = ?"
 		outAmount := calcExactIn(inToken, inAmount, *pair)
 
 		inBalance.Balance = inBalance.Balance - inAmount
@@ -154,8 +165,6 @@ func Swap(userID int, token0 string, token1 string, inAmount float64, intermedia
 
 		if err != nil {
 			tx.Rollback()
-			log.Println(err)
-
 			return 0, err
 		}
 
@@ -167,11 +176,11 @@ func Swap(userID int, token0 string, token1 string, inAmount float64, intermedia
 		}
 		pair.balance0 = pair.balance0 + delta0
 		pair.balance1 = pair.balance1 + delta1
-		_, err = tx.ExecContext(ctx, UPDATE_PAIR_RESERVE, pair.balance0, pair.balance1, pair.ID)
+		pair.totalVolumeRecorded = pair.totalVolumeRecorded + ((inAmount*tokenMap[inToken].Price)+(outAmount*tokenMap[outToken].Price))/2
+		_, err = tx.ExecContext(ctx, UPDATE_PAIR_RESERVE, pair.balance0, pair.balance1, pair.totalVolumeRecorded, pair.ID)
 
 		if err != nil {
 			tx.Rollback()
-			log.Println(err)
 			return 0, err
 		}
 		return outAmount, nil
@@ -180,15 +189,18 @@ func Swap(userID int, token0 string, token1 string, inAmount float64, intermedia
 	if intermediaryToken != "" {
 		inAmount, err = txSwapFunc(token0, intermediaryToken, inAmount, &pair0, &bal0, &bal1)
 		if err != nil {
+			tx.Rollback()
 			return false
 		}
 		_, err = txSwapFunc(intermediaryToken, token1, inAmount, &pair1, &bal1, &bal2)
 		if err != nil {
+			tx.Rollback()
 			return false
 		}
 	} else {
 		_, err = txSwapFunc(token0, token1, inAmount, &pair0, &bal0, &bal2)
 		if err != nil {
+			tx.Rollback()
 			return false
 		}
 	}
@@ -197,6 +209,5 @@ func Swap(userID int, token0 string, token1 string, inAmount float64, intermedia
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	return true
 }

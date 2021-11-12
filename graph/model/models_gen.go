@@ -62,6 +62,16 @@ type TokenHourData struct {
 	TokenPrice float64 `json:"tokenPrice"`
 }
 
+type TopPair struct {
+	ID                  string  `json:"id"`
+	Token0              string  `json:"token0"`
+	Token1              string  `json:"token1"`
+	Icon0               string  `json:"icon0"`
+	Icon1               string  `json:"icon1"`
+	TotalVolumeRecorded float64 `json:"totalVolumeRecorded"`
+	MarketCap           float64 `json:"marketCap"`
+}
+
 type User struct {
 	ID             string `json:"id"`
 	Username       string `json:"username"`
